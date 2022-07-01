@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+<form action="/trace" method="post">
+      Configuration PID: P <input type="text" name="P_gain" value="1"> I <input type="text" name="I_gain" value="0"> D <input type="text" name="D_gain" value="0">
+    <br>
+    Paramètres: Amplitude <input type="text" name="amplitude"value="45"> Fréquence <input type="text" name="frequence" value="1"> Nb périodes <input type="text" name="nb_periodes" value="5">
+    <br>
+    <button name="backBtn" type="submit">Envoyer</button>
+</form>
+
+{{message_erreur}}
+
+
+</body>
+</html>
+

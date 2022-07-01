@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='graph.css') }}">
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2" crossorigin="anonymous"></script>
+          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <title>Réponse temporelle</title>
+    	<script src="https://www.chartjs.org/dist/2.9.3/Chart.js"></script>
+          <link rel="stylesheet" href="{{ url_for('static', filename='rSlider.min.css') }}">
+        <script src="{{ url_for('static', filename='rSlider.min.js') }}"></script>
+
+</head>
+
+  <body>
+
+  <div class="container-fluid">
+      <div class="row">
+        <div class="col-sm">
+			<canvas id="canvas"></canvas>
+		</div>
+          <div class="col-sm">
+         <h1>Paramétrage du tracé:</h1>
+      {% for radio in inputs.radios[0] %}
+      <label>{{radio.label}}</label>
+              {% for choice in radio.choices %}
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="{{radio.name}}" value="{{choice.name}}" id="{{choice.name}}-option" onchange="update();"  {% if choice.checked %}checked {%endif%}>
+            <label class="form-check-label" for="{{choice.name}}-option">
+          {{choice.label}}
+        </label>
+      </div>
+              {% endfor %}
+      {% endfor %}
+      {% for gp_checks in inputs.checks%}
+        {% for check in gp_checks%}
+      <input type="checkbox" id="{{check.name}}" name="{{check.name}}"  onclick="update();"checked>
+      <label for="{{check.name}}">Dirt</label>
+             {% endfor %}
+      {% endfor %}
+              <br><br>
+    {% for gp_sliders in inputs.sliders%}
+        {% for slider in gp_sliders%}
+    <div id="div{{slider.name}}">
+     <label>{{slider.label}}</label>
+    <input type="text" id="{{slider.name}}" />
+    </div>
+        {% endfor %}
+    {% endfor %}
+
+    {% for gp_buttons in buttons%}
+        {% for button in gp_buttons%}
+            <input type="submit" name="{{button.name}}" id="{{button.name}}"  value="{{button.label}}" onclick="{{button.action}}">
+        {% endfor %}
+    {% endfor %}
+    <br>
+
+     <br><br>
+     <div id="results_display">
+     <h2>Results</h2>
+     <p>Résultats : <span id="result">   </span>
+     <br>
+     <p><span id="prolonged"></span></p>
+     <p>Saved data. There are <span id="num-rows"></span> items saved.</p>
+     </div>
+    </div>
+
+
+
+<script>
+function send_exp() {
+{% for gp_radios in inputs.radios%}
+    {% for radio in gp_radios%}
+         var {{radio.name}} = document.getElementsByName("{{radio.name}}");
+    {% endfor %}
+{% endfor %}
+
+{% for gp_radios in inputs.radios%}
+    {% for radio in gp_radios%}
+  for(var i=0; i<{{radio.name}}.length; i++) {
+    if({{radio.name}}[i].checked) var selected{{radio.name}} = {{radio.name}}[i].value;
+  }
+      {% endfor %}
+  {% endfor %}
+
+ {% for gp_checks in inputs.checks%}
+    {% for check in gp_checks %}
+        {% if check.checked %}
+            var {{check.name}} = document.getElementById("{{check.name}}").checked;
+        {% else %}
+            var {{check.name}} = document.getElementById("{{check.name}}");
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+{% for gp_sliders in inputs.sliders%}
+    {% for slider in gp_sliders%}
+         var {{slider.name}} = {{slider.convertjava}}(document.getElementById("{{slider.name}}").value);
+            {% if slider.hide %}
+                if (selected{{slider.hide[0]}}=='{{slider.hide[1]}}')
+                    {document.getElementById("div{{slider.name}}").style.display = "none";
+                    }
+                    else
+                    {
+                    document.getElementById("div{{slider.name}}").style.display = "block";
+                    }
+            {% endif %}
+    {% endfor %}
+{% endfor %}
+var server_data =
+  {
+  {% for key, values in inputs.items() %}
+        {% for gp_input in values %}
+               {% for input in gp_input %}
+                '{{input.name}}':{{input.name}},
+               {% endfor %}
+        {% endfor %}
+  {% endfor %}
+  };
+$.ajax({
+   type: "POST",
+   url: "/send_exp",
+   data: JSON.stringify(server_data),
+   contentType: "application/json",
+   dataType: 'json',
+   success: function(result) {
+{% for output in outputs[0] %}
+     var data{{output.name}} = [];
+     for(var i=0; i<result.length; i++) {
+        data{{output.name}}.push({
+          x: result[i]['x_time'],
+          y: result[i]['{{output.name}}']
+        });
+       }
+      {% endfor %}
+    dataArr = [
+    {% for output in outputs[0] %}
+    {
+      "label": "{{output.label}}",
+      "fill": false,
+      "yAxisID": "{{output.yaxe}}",
+      "data": data{{output.name}},
+      "borderColor": "{{output.color}}",
+      "backgroundColor": "{{output.color}}",
+      "borderDash": {{output.borderDash}}
+    },
+    {% endfor %}
+    ];
+   var config = {
+        type: 'line',
+        data: {
+            datasets: dataArr
+        },
+        options: {
+            maintainAspectRatio: false,
+            aspectRatio: 0.4,
+            responsive: true,
+            elements:
+                {
+                point:{
+                radius:1
+                },
+                line:{
+                }
+                },
+            title: {
+            display: true,
+            text: 'Réponse du système'
+            },
+            scales: {
+            xAxes: [{
+                type: "linear",
+                scaleLabel: {
+                        display: true,
+                        labelString: 'Temps (s)'
+                      },
+                ticks: {
+                    maxRotation: 0,
+                    minRotation: 0,
+                    stepSize:0.5
+                }
+            }],
+            yAxes: [{
+                id:'amp',
+                type: "linear",
+                position: 'left',
+                scaleLabel: {
+                        display: true,
+                        labelString: 'Angle (°)'
+                      },
+            }
+            ]
+
+            }
+        }
+    };
+    if(window.myLine!=null){
+    window.myLine.destroy();}
+    var ctx = document.getElementById('canvas').getContext('2d');
+    window.myLine = new Chart(ctx, config);
+    }
+    });
+ }
+
+
+
+
+
+function update() {
+/*  read_sensors()*/
+{% for gp_radios in inputs.radios%}
+    {% for radio in gp_radios%}
+         var {{radio.name}} = document.getElementsByName("{{radio.name}}");
+    {% endfor %}
+{% endfor %}
+
+{% for gp_radios in inputs.radios%}
+    {% for radio in gp_radios%}
+  for(var i=0; i<{{radio.name}}.length; i++) {
+    if({{radio.name}}[i].checked) var selected{{radio.name}} = {{radio.name}}[i].value;
+  }
+      {% endfor %}
+  {% endfor %}
+
+ {% for gp_checks in inputs.checks%}
+    {% for check in gp_checks %}
+        {% if check.checked %}
+            var {{check.name}} = document.getElementById("{{check.name}}").checked;
+        {% else %}
+            var {{check.name}} = document.getElementById("{{check.name}}");
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+{% for gp_sliders in inputs.sliders%}
+    {% for slider in gp_sliders%}
+         var {{slider.name}} = {{slider.convertjava}}(document.getElementById("{{slider.name}}").value);
+            {% if slider.hide %}
+                if (selected{{slider.hide[0]}}=='{{slider.hide[1]}}')
+                    {document.getElementById("div{{slider.name}}").style.display = "none";
+                    }
+                    else
+                    {
+                    document.getElementById("div{{slider.name}}").style.display = "block";
+                    }
+            {% endif %}
+    {% endfor %}
+{% endfor %}
+
+  var result = document.getElementById("result");
+  var prolongedResult = document.getElementById("prolonged");
+  var resultsContainer = document.getElementById("results_display");
+  var numRows = document.getElementById("num-rows");
+  resultsContainer.style.display = "none";
+  var server_data =
+  {
+  {% for gp_checks in inputs.checks %}
+    {% for check in gp_checks%}
+        "{{check.name}}": {{check.name}},
+    {% endfor %}
+  {% endfor %}
+  {% for gp_sliders in inputs.sliders%}
+    {% for slider in gp_sliders%}
+         "{{slider.name}}" : {{slider.name}},
+    {% endfor %}
+  {% endfor %}
+  {% for gp_radios in inputs.radios%}
+    {% for radio in gp_radios%}
+         "{{radio.name}}": selected{{radio.name}},
+    {% endfor %}
+  {% endfor %}
+  };
+   $.ajax({
+   type: "POST",
+   url: "/process",
+   data: JSON.stringify(server_data),
+   contentType: "application/json",
+   dataType: 'json',
+   success: function(result) {
+        }
+	});
+}
+
+/*function read_sensors() {
+  var result = document.getElementById("result");
+  var identity = setInterval(scene, 100);
+  function scene() {
+    $.ajax('/sensors',{
+   dataType: 'json',
+   success: function(result) {
+   result.innerHTML = result;
+     }
+        });
+  }
+}*/
+
+{% for gp_sliders in inputs.sliders%}
+    {% for slider in gp_sliders%}
+        var mySlider{{slider.name}} = new rSlider({
+            target: '{{slider.target}}',
+            values: {{slider.val}},
+            //step: {{slider.step}},
+            range: false,
+            tooltip: true,
+            scale: true,
+            labels: false,
+            set: {{slider.set}},
+            onChange: function (vals) {
+                      update();;
+                        }
+        });
+    {% endfor %}
+{% endfor %}
+
+</script>
+  </body>
+</html>
